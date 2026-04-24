@@ -11,6 +11,9 @@
 __pycache__/
 *.pyc
 
+# Personal notes — keep local only
+NOTES.md
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db
