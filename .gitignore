@@ -1,0 +1,17 @@
+# Keep certificate material and test artefacts out of the repo
+*.pem
+*.crt
+*.cer
+*.key
+*.pfx
+*.p12
+*.zip
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp

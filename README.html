@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CyberArk Certificate Manager &mdash; Upload / Tag / Download Workflow</title>
+<style>
+  :root {
+    --fg: #1f2328;
+    --muted: #57606a;
+    --border: #d0d7de;
+    --bg: #ffffff;
+    --code-bg: #f6f8fa;
+    --accent: #0969da;
+    --warn-bg: #fff8c5;
+    --warn-border: #d4a72c;
+  }
+  html { box-sizing: border-box; }
+  *, *::before, *::after { box-sizing: inherit; }
+  body {
+    margin: 0;
+    padding: 2.5rem 1.5rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    color: var(--fg);
+    background: var(--bg);
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 {
+    margin-top: 0;
+    padding-bottom: .35em;
+    border-bottom: 1px solid var(--border);
+    font-size: 1.9rem;
+  }
+  h2 {
+    margin-top: 2.25rem;
+    padding-bottom: .25em;
+    border-bottom: 1px solid var(--border);
+    font-size: 1.4rem;
+  }
+  h3 { margin-top: 1.75rem; font-size: 1.1rem; }
+  p, ul, ol { margin: .6rem 0 1rem; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: .12em .35em;
+    border-radius: 4px;
+    font-size: .9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .9rem 1rem;
+    overflow-x: auto;
+    font-size: .875rem;
+    line-height: 1.5;
+  }
+  pre code { background: transparent; padding: 0; border-radius: 0; font-size: inherit; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: .75rem 0 1.25rem;
+    font-size: .92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: .5rem .75rem;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--code-bg); font-weight: 600; }
+  tbody tr:nth-child(even) { background: #fbfcfd; }
+  .muted { color: var(--muted); }
+  .note {
+    border: 1px solid var(--warn-border);
+    background: var(--warn-bg);
+    border-radius: 6px;
+    padding: .75rem 1rem;
+    margin: 1rem 0;
+  }
+  .note strong { color: #7a5d0a; }
+  .files { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: .5rem 0 1rem; }
+  .files code { white-space: nowrap; }
+  a { color: var(--accent); }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: .85rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>CyberArk Certificate Manager &mdash; Upload / Tag / Download Workflow</h1>
+
+<p>
+Two equivalent scripts &mdash; one in <strong>PowerShell</strong>, one in <strong>Python 3</strong>&nbsp;&mdash; that run the
+same end-to-end flow against the <em>CyberArk Certificate Manager&nbsp;&mdash; SaaS</em> REST API at
+<code>https://api.venafi.cloud</code>:
+</p>
+
+<ol>
+  <li>Resolve the current user (used as the application owner).</li>
+  <li>Create the application, or reuse it if one with the same name already exists.</li>
+  <li>Extract the end-entity certificate from the supplied PEM and upload it, associating it with the application.</li>
+  <li>Create the tag and tag value (or reuse them if they exist), then assign <code>TagName:TagValue</code> to the uploaded certificate.</li>
+  <li>Download the certificate chain back to the path you specify.</li>
+</ol>
+
+<p>Both scripts are idempotent &mdash; re-running them against the same inputs leaves the tenant in the same end state.</p>
+
+<h2>Files</h2>
+<div class="files">
+  <code>Invoke-CcmCertWorkflow.ps1</code> <span>PowerShell 5.1 or PowerShell 7+ script.</span>
+  <code>ccm_cert_workflow.py</code>      <span>Python 3.8+ script (depends on the <code>requests</code> library).</span>
+</div>
+
+<h2>Prerequisites</h2>
+<ul>
+  <li>An API key for your CyberArk Certificate Manager&nbsp;&mdash; SaaS tenant (<em>Configuration &rarr; API Keys</em> in the UI).</li>
+  <li>Network reachability to the regional API endpoint (default <code>https://api.venafi.cloud</code>; use
+    <code>-ApiBaseUrl</code>&nbsp;/&nbsp;<code>--api-base-url</code> for EU, AU, UK, SG, CA).</li>
+  <li>A PEM file containing at least the end-entity (&ldquo;leaf&rdquo;) certificate. A full chain or a PEM that also
+    contains a private key is fine &mdash; only the first <code>-----BEGIN&nbsp;CERTIFICATE-----</code> block is uploaded.</li>
+  <li><strong>PowerShell:</strong> Windows PowerShell 5.1 or PowerShell 7+. No extra modules required.</li>
+  <li><strong>Python:</strong> Python 3.8+ with the <code>requests</code> library (<code>pip install requests</code>).</li>
+</ul>
+
+<h2>Parameters</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>PowerShell</th>
+      <th>Python</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>-PemPath</code></td>
+      <td><code>--pem-path</code></td>
+      <td>Yes</td>
+      <td>Path to the PEM file. If it contains multiple certificates, only the first block is uploaded.</td>
+    </tr>
+    <tr>
+      <td><code>-ApiKey</code></td>
+      <td><code>--api-key</code></td>
+      <td>Yes</td>
+      <td>CyberArk Certificate Manager SaaS API key. Sent as the <code>tppl-api-key</code> header.</td>
+    </tr>
+    <tr>
+      <td><code>-ApplicationName</code></td>
+      <td><code>--application-name</code></td>
+      <td>Yes</td>
+      <td>Application to create, or to reuse if it already exists.</td>
+    </tr>
+    <tr>
+      <td><code>-TagName</code></td>
+      <td><code>--tag-name</code></td>
+      <td>Yes</td>
+      <td>Tag name (e.g. <code>Service Now</code>). Reused if it already exists.</td>
+    </tr>
+    <tr>
+      <td><code>-TagValue</code></td>
+      <td><code>--tag-value</code></td>
+      <td>Yes</td>
+      <td>Tag value (e.g. a ServiceNow ticket number). Reused if it already exists on the tag.</td>
+    </tr>
+    <tr>
+      <td><code>-OutputPath</code></td>
+      <td><code>--output-path</code></td>
+      <td>Yes</td>
+      <td>Where to save the downloaded PEM (certificate chain, root first).</td>
+    </tr>
+    <tr>
+      <td><code>-ApiBaseUrl</code></td>
+      <td><code>--api-base-url</code></td>
+      <td>No</td>
+      <td>Regional base URL. Defaults to <code>https://api.venafi.cloud</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Usage</h2>
+
+<h3>PowerShell</h3>
+<pre><code>.\Invoke-CcmCertWorkflow.ps1 `
+  -PemPath .\mycert.pem `
+  -ApiKey &lt;YOUR_API_KEY&gt; `
+  -ApplicationName "Billing App" `
+  -TagName "Service Now" `
+  -TagValue INC0012345 `
+  -OutputPath .\mycert-downloaded.pem</code></pre>
+
+<p>If your environment blocks unsigned scripts, bypass the execution policy for one invocation:</p>
+<pre><code>powershell.exe -ExecutionPolicy Bypass -File .\Invoke-CcmCertWorkflow.ps1 -PemPath .\mycert.pem ...</code></pre>
+
+<h3>Python</h3>
+<pre><code>python ccm_cert_workflow.py \
+  --pem-path ./mycert.pem \
+  --api-key &lt;YOUR_API_KEY&gt; \
+  --application-name "Billing App" \
+  --tag-name "Service Now" \
+  --tag-value INC0012345 \
+  --output-path ./mycert-downloaded.pem</code></pre>
+
+<h3>Example output</h3>
+<pre><code>[1/6] Resolving current user...
+      User: user@example.com (e6a97930-3e53-11f1-873d-551f3f70f949)
+[2/6] Ensuring application 'Billing App' exists...
+      Created application id: 18843050-4000-11f1-aadd-6510565d75b3
+[3/6] Uploading certificate from ./mycert.pem...
+      Certificate id: 5786acd0-3ff4-11f1-a4df-a5ca8bcb08da  (fingerprint: DF80...3E1B)
+[4/6] Ensuring tag 'Service Now' with value 'INC0012345' exists...
+      Created tag id: b8dcc5d0-4000-11f1-911d-739defcc3b48
+      Added value 'INC0012345'
+[5/6] Assigning 'Service Now:INC0012345' to certificate 5786acd0-3ff4-11f1-a4df-a5ca8bcb08da...
+      Status: ASSIGNED
+[6/6] Downloading certificate chain to ./mycert-downloaded.pem...
+      Saved 5461 bytes, 3 certificate(s) in chain
+
+Done.
+  Application : Billing App  (18843050-4000-11f1-aadd-6510565d75b3)
+  Certificate : 5786acd0-3ff4-11f1-a4df-a5ca8bcb08da
+  Tag         : Service Now:INC0012345
+  Downloaded  : ./mycert-downloaded.pem</code></pre>
+
+<h2>API calls under the hood</h2>
+
+<table>
+  <thead>
+    <tr><th>Step</th><th>Method + path</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1. Resolve user</td>
+        <td><code>GET /v1/useraccounts</code></td>
+        <td>Supplies the <code>ownerId</code> for the application.</td></tr>
+    <tr><td>2a. Find application</td>
+        <td><code>GET /outagedetection/v1/applications/name/{name}</code></td>
+        <td>Reused if it returns 200; on 404 we fall through to create.</td></tr>
+    <tr><td>2b. Create application</td>
+        <td><code>POST /outagedetection/v1/applications</code></td>
+        <td>Body: <code>{ name, ownerIdsAndTypes }</code>.</td></tr>
+    <tr><td>3. Upload certificate</td>
+        <td><code>POST /outagedetection/v1/certificates</code></td>
+        <td>Body: <code>{ certificates: [{ certificate, applicationIds }] }</code>. If the cert already exists
+            (<code>statistics.existed &gt; 0</code>), the script looks it up via <code>POST /outagedetection/v1/certificatesearch</code>
+            filtered on the SHA-1 fingerprint it computed locally.</td></tr>
+    <tr><td>4a. Get or create tag</td>
+        <td><code>GET /v1/tags/{name}</code> &rarr; fallback <code>POST /v1/tags</code></td>
+        <td>Body on create: <code>{ name, values: [value] }</code>.</td></tr>
+    <tr><td>4b. Ensure tag value</td>
+        <td><code>GET /v1/tags/{name}/values</code> &rarr; fallback <code>POST /v1/tags/{name}/values</code></td>
+        <td>Body on create: <code>{ values: [value] }</code>.</td></tr>
+    <tr><td>5. Assign tag to cert</td>
+        <td><code>PATCH /v1/tagsassignment</code></td>
+        <td>Body: <code>{ action: "ADD", entityIds: [certId], entityType: "CERTIFICATE", targetedTags: ["Name:Value"] }</code>.
+            Note that <code>targetedTags</code> uses the <code>TagName:TagValue</code> string form, not UUIDs.</td></tr>
+    <tr><td>6. Download chain</td>
+        <td><code>GET /outagedetection/v1/certificates/{id}/contents?format=PEM&amp;chainOrder=ROOT_FIRST</code></td>
+        <td>Header: <code>accept: text/plain</code>.</td></tr>
+  </tbody>
+</table>
+
+<h2>Notes and caveats</h2>
+
+<div class="note">
+  <p><strong>Only the public certificate is uploaded.</strong> If the PEM contains a private key, the key is
+  <em>ignored</em> &mdash; the simple <code>/outagedetection/v1/certificates</code> endpoint accepts only the public
+  certificate. Uploading a key would require the PKCS#8 / PKCS#12 import endpoint, which encrypts the key with
+  NaCl/libsodium against the tenant&rsquo;s edge-instance public key. That flow is intentionally not implemented here.</p>
+</div>
+
+<div class="note">
+  <p><strong>Certificate ordering in the input PEM.</strong> The script uses the first
+  <code>-----BEGIN CERTIFICATE-----</code> block it finds. For standard files (<code>cert.pem</code>,
+  <code>fullchain.pem</code>) the end-entity cert is first, so this is correct. However &mdash; note that the
+  <em>downloaded</em> file uses <code>ROOT_FIRST</code> ordering. If you feed a previously downloaded file back into
+  the script, the first block will be the root CA, the upload will store the root, and the download call will
+  fail because roots have no issuer chain in the service. Use the original <code>cert.pem</code> / <code>fullchain.pem</code>
+  &mdash; not a <code>ROOT_FIRST</code> round-trip &mdash; as the input.</p>
+</div>
+
+<div class="note">
+  <p><strong>Regional endpoints.</strong> For tenants outside US-default, pass <code>-ApiBaseUrl</code>
+  (PowerShell) or <code>--api-base-url</code> (Python) with the correct regional URL, e.g.
+  <code>https://api.venafi.eu</code> or <code>https://api.au.venafi.cloud</code>.</p>
+</div>
+
+<h2>Troubleshooting</h2>
+
+<table>
+  <thead>
+    <tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>HTTP 401</code> on the first call</td>
+      <td>Invalid or expired API key, or wrong regional endpoint.</td>
+      <td>Confirm the key in the CCM UI (<em>Configuration &rarr; API Keys</em>) and make sure the base URL matches your tenant&rsquo;s region.</td>
+    </tr>
+    <tr>
+      <td>Script cannot be loaded / not digitally signed</td>
+      <td>PowerShell execution policy blocks unsigned scripts.</td>
+      <td>Run with <code>powershell.exe -ExecutionPolicy Bypass -File .\Invoke-CcmCertWorkflow.ps1 ...</code>, or
+          run <code>Unblock-File .\Invoke-CcmCertWorkflow.ps1</code> then <code>Set-ExecutionPolicy -Scope Process RemoteSigned</code>.</td>
+    </tr>
+    <tr>
+      <td><code>Upload reported existed=1 but fingerprint ... not found via search</code></td>
+      <td>The certificate was imported previously but retired/hidden so it doesn&rsquo;t surface in the default search view.</td>
+      <td>Check <em>Inventory &rarr; Certificates</em> with <em>Include retired</em> enabled, or use a different copy of the cert.</td>
+    </tr>
+    <tr>
+      <td><code>HTTP 400 &hellip; Issuer certificates not available</code> during download (step 6)</td>
+      <td>The cert you uploaded is a root or an unknown intermediate &mdash; the service can&rsquo;t build a chain.</td>
+      <td>Make sure the PEM&rsquo;s first block is the end-entity cert, not a root/intermediate.</td>
+    </tr>
+  </tbody>
+</table>
+
+<footer>
+  Generated for reference. Scripts are idempotent &mdash; safe to re-run. Last verified against the CyberArk Certificate Manager&nbsp;&mdash; SaaS API.
+</footer>
+
+</div>
+</body>
+</html>
