@@ -7,6 +7,12 @@
 *.p12
 *.zip
 
+# Generated certificate output (bulk-issuance workflow)
+out/
+output/
+results.csv
+GENERATED-PASSWORDS.csv
+
 # Python bytecode
 __pycache__/
 *.pyc

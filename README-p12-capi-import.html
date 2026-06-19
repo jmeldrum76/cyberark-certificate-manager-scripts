@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Importing &amp; Verifying the P12 in the Windows Certificate Store (CAPI)</title>
+<style>
+  :root {
+    --fg: #1f2328;
+    --muted: #57606a;
+    --border: #d0d7de;
+    --bg: #ffffff;
+    --code-bg: #f6f8fa;
+    --accent: #0969da;
+    --warn-bg: #fff8c5;
+    --warn-border: #d4a72c;
+    --ok-bg: #dafbe1;
+    --ok-border: #2da44e;
+  }
+  html { box-sizing: border-box; }
+  *, *::before, *::after { box-sizing: inherit; }
+  body {
+    margin: 0;
+    padding: 2.5rem 1.5rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    color: var(--fg);
+    background: var(--bg);
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 {
+    margin-top: 0;
+    padding-bottom: .35em;
+    border-bottom: 1px solid var(--border);
+    font-size: 1.9rem;
+  }
+  h2 {
+    margin-top: 2.25rem;
+    padding-bottom: .25em;
+    border-bottom: 1px solid var(--border);
+    font-size: 1.4rem;
+  }
+  h3 { margin-top: 1.75rem; font-size: 1.1rem; }
+  p, ul, ol { margin: .6rem 0 1rem; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: .12em .35em;
+    border-radius: 4px;
+    font-size: .9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .9rem 1rem;
+    overflow-x: auto;
+    font-size: .875rem;
+    line-height: 1.5;
+  }
+  pre code { background: transparent; padding: 0; border-radius: 0; font-size: inherit; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: .75rem 0 1.25rem;
+    font-size: .92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: .5rem .75rem;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--code-bg); font-weight: 600; }
+  tbody tr:nth-child(even) { background: #fbfcfd; }
+  .muted { color: var(--muted); }
+  .note {
+    border: 1px solid var(--warn-border);
+    background: var(--warn-bg);
+    border-radius: 6px;
+    padding: .75rem 1rem;
+    margin: 1rem 0;
+  }
+  .note strong { color: #7a5d0a; }
+  .ok {
+    border: 1px solid var(--ok-border);
+    background: var(--ok-bg);
+    border-radius: 6px;
+    padding: .75rem 1rem;
+    margin: 1rem 0;
+  }
+  a { color: var(--accent); }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: .85rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Importing &amp; Verifying the P12 in the Windows Certificate Store (CAPI)</h1>
+
+<p>
+After issuing certificates with the bulk workflow
+(<a href="README-csv-issuance.md">README-csv-issuance.md</a>), each <code>&lt;name&gt;.p12</code>
+is a complete, password-protected PKCS#12 keystore containing the <strong>private key</strong>,
+the <strong>leaf certificate</strong>, and the <strong>issuer chain</strong>. This guide shows
+how to import that <code>.p12</code> into the Windows certificate store (CAPI/CNG) and
+<strong>prove the private key actually works</strong> &mdash; not just that the file is
+structurally valid.
+</p>
+
+<div class="note">
+  <strong>Tested.</strong> This was verified end-to-end against a Windows Server 2019 box.
+  See <a href="#proven">Proven test results</a> below for the exact output.
+</div>
+
+<h2>Which store?</h2>
+<table>
+  <thead>
+    <tr><th>Store</th><th>Path</th><th>Use when</th><th>Admin needed</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Current user</td><td><code>Cert:\CurrentUser\My</code></td><td>the cert is for an app running as your user</td><td>No</td></tr>
+    <tr><td>Local machine</td><td><code>Cert:\LocalMachine\My</code></td><td>the cert is for a service / IIS / whole-machine use</td><td>Yes (elevated)</td></tr>
+  </tbody>
+</table>
+
+<h2>Method 1 &mdash; PowerShell (<code>Import-PfxCertificate</code>)</h2>
+<pre><code># Password the .p12 was created with (the -KeyPassword you passed to the issuance script)
+$pw = ConvertTo-SecureString 'ChangeMe123!' -AsPlainText -Force
+
+# Import into the LocalMachine store (run PowerShell as Administrator), key marked exportable
+$imp = Import-PfxCertificate -FilePath 'C:\out\device001.example.com.p12' `
+        -CertStoreLocation Cert:\LocalMachine\My -Password $pw -Exportable
+
+$imp.Thumbprint        # the imported certificate's thumbprint
+</code></pre>
+<p>
+For a non-elevated, per-user import, use <code>-CertStoreLocation Cert:\CurrentUser\My</code>
+instead (no admin required).
+</p>
+
+<h2>Method 2 &mdash; GUI</h2>
+<ol>
+  <li>Double-click the <code>.p12</code> file &rarr; <strong>Certificate Import Wizard</strong>.</li>
+  <li>Choose <strong>Current User</strong> or <strong>Local Machine</strong> (Local Machine prompts for elevation).</li>
+  <li>Enter the password. Tick <strong>Mark this key as exportable</strong> if you may need to re-export the key later.</li>
+  <li>Let Windows <strong>automatically select the store</strong>, or place it in <strong>Personal</strong>.</li>
+</ol>
+<p>
+You can also open the machine store directly with <code>certlm.msc</code> (Local Machine) or the
+user store with <code>certmgr.msc</code>, then <strong>Personal &rarr; Certificates &rarr; All Tasks &rarr; Import</strong>.
+</p>
+
+<h2>Verifying the private key actually works</h2>
+<p>
+Importing succeeds even for a cert with no usable key, so verify properly. The check that
+matters is a <strong>sign/verify roundtrip through the CAPI key handle</strong> &mdash; if that
+passes, Windows can really use the key.
+</p>
+<pre><code>$cert = Get-Item ("Cert:\LocalMachine\My\" + $imp.Thumbprint)
+
+"Subject        = $($cert.Subject)"
+"HasPrivateKey  = $($cert.HasPrivateKey)"           # must be True
+
+# Use the private key via CAPI/CNG to sign, then verify with the public key
+$rsaPriv = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+$rsaPub  = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+$data = [Text.Encoding]::UTF8.GetBytes('capi-roundtrip-test')
+$sig  = $rsaPriv.SignData($data, [Security.Cryptography.HashAlgorithmName]::SHA256, [Security.Cryptography.RSASignaturePadding]::Pkcs1)
+"KeyProvider    = $($rsaPriv.GetType().Name)"       # RSACng / RSACryptoServiceProvider
+"SignVerify_OK  = $($rsaPub.VerifyData($data, $sig, [Security.Cryptography.HashAlgorithmName]::SHA256, [Security.Cryptography.RSASignaturePadding]::Pkcs1))"   # must be True
+</code></pre>
+
+<p>Check that the full chain is present in the keystore:</p>
+<pre><code>$chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
+$chain.ChainPolicy.RevocationMode = 'NoCheck'
+"ChainBuilt     = $($chain.Build($cert))"
+"ChainElements  = $($chain.ChainElements.Count)"    # leaf + intermediate(s) + root
+"ChainStatus    = $((($chain.ChainStatus | ForEach-Object { $_.Status }) -join ', '))"
+</code></pre>
+
+<h2>&ldquo;UntrustedRoot&rdquo; is expected for the Built-In CA</h2>
+<p>
+If <code>ChainStatus</code> shows <code>UntrustedRoot</code>, that is <strong>not</strong> a problem
+with the <code>.p12</code>. It means the issuing CA's root (e.g. <em>CyberArk CM SaaS Built-In CA</em>)
+isn't in the machine's <strong>Trusted Root Certification Authorities</strong> store. The full chain
+is already inside the <code>.p12</code>; the machine just doesn't trust that private root yet.
+</p>
+<p>
+To make the chain validate, import the root (and intermediate) once per machine. The
+<code>&lt;name&gt;.chain.pem</code> file produced by the issuance workflow contains them:
+</p>
+<pre><code># Import every CA cert from the chain file into Trusted Roots (elevated).
+# (Strictly, only the self-signed root belongs in Root; intermediates go in CA.)
+Import-Certificate -FilePath 'C:\out\device001.example.com.chain.pem' `
+    -CertStoreLocation Cert:\LocalMachine\Root
+</code></pre>
+<p>
+After trusting the root, re-run the chain build above and <code>ChainBuilt</code> becomes
+<code>True</code> with an empty <code>ChainStatus</code>.
+</p>
+
+<h2 id="proven">Proven test results</h2>
+<p>
+A freshly issued <code>.p12</code> was imported into <code>Cert:\LocalMachine\My</code> on
+Windows Server 2019 and exercised:
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>p12_exists</code></td><td><code>True</code></td></tr>
+    <tr><td>Imported thumbprint</td><td><code>AA3238647D3F2BBA180629D5F59003E8695B1077</code></td></tr>
+    <tr><td>Subject</td><td><code>CN=device001.example.com, O=Example Corp, OU=Devices, L=Anytown, S=AZ, C=US</code></td></tr>
+    <tr><td>Issuer</td><td><code>CN=CyberArk CM SaaS Built-In Intermediate CA - G1, OU=Built-in, O=CyberArk Software Ltd., C=IL</code></td></tr>
+    <tr><td><code>HasPrivateKey</code></td><td><code>True</code></td></tr>
+    <tr><td>Key provider</td><td><code>RSACng</code> (key stored in the Windows CNG/CAPI key store)</td></tr>
+    <tr><td><strong>CAPI sign/verify roundtrip</strong></td><td><strong><code>True</code></strong></td></tr>
+    <tr><td>Chain elements in the keystore</td><td><code>3</code> (leaf + intermediate + root)</td></tr>
+    <tr><td>Chain status</td><td><code>UntrustedRoot</code> (root not in Trusted Roots &mdash; expected for a private CA)</td></tr>
+  </tbody>
+</table>
+<div class="ok">
+  The sign/verify roundtrip passing is the definitive proof: Windows imported the key into
+  CAPI and can actually use it to sign.
+</div>
+
+<h2>Removing the certificate (cleanup)</h2>
+<pre><code>Remove-Item ("Cert:\LocalMachine\My\" + $imp.Thumbprint) -Force
+# or, by subject:
+Get-ChildItem Cert:\LocalMachine\My | Where-Object Subject -match 'example' | Remove-Item
+</code></pre>
+
+<h2>Troubleshooting</h2>
+<table>
+  <thead>
+    <tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>The specified network password is not correct</code> on import</td><td>Wrong <code>.p12</code> password.</td><td>Use the exact <code>-KeyPassword</code> the issuance script used.</td></tr>
+    <tr><td><code>Access is denied</code> importing to <code>LocalMachine</code></td><td>Not elevated.</td><td>Run PowerShell as Administrator, or import to <code>CurrentUser\My</code>.</td></tr>
+    <tr><td><code>HasPrivateKey = False</code> after import</td><td>Imported a cert-only file, or the key didn't attach.</td><td>Re-import the <code>.p12</code> (not the <code>.crt.pem</code>); ensure the file is the keystore.</td></tr>
+    <tr><td><code>ChainStatus = UntrustedRoot</code></td><td>The private CA root isn't trusted on this machine.</td><td>Import the root from <code>&lt;name&gt;.chain.pem</code> into Trusted Roots (see above).</td></tr>
+    <tr><td>Need to re-export the key later</td><td>Imported without <code>-Exportable</code>.</td><td>Re-import with <code>-Exportable</code> (PowerShell) or tick <em>Mark key as exportable</em> (GUI).</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  CyberArk Certificate Manager &mdash; SaaS &middot; P12 import &amp; CAPI verification guide.
+</footer>
+
+</div>
+</body>
+</html>

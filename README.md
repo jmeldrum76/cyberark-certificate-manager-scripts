@@ -1,4 +1,44 @@
-# CyberArk Certificate Manager — Upload / Tag / Download Workflow
+# CyberArk Certificate Manager — Scripts
+
+This repo contains **two** workflows against the *CyberArk Certificate Manager — SaaS*
+REST API (`https://api.venafi.cloud`), each provided in both PowerShell and Python:
+
+1. **Upload / Tag / Download an existing certificate** — described below.
+   Scripts: `Invoke-CcmCertWorkflow.ps1`, `ccm_cert_workflow.py`.
+2. **Bulk-issue certificates from a CSV, with private key (PEM + P12)** — see
+   **[`README-csv-issuance.md`](README-csv-issuance.md)**.
+   Scripts: `Invoke-CcmCsvCertIssue.ps1`, `ccm_csv_cert_issue.py`. Both default to
+   **central key generation** (CM SaaS makes the key + cert) and also support
+   **local key generation** (key made on the host, CSR uploaded). PowerShell central
+   keygen needs PowerShell 7+ and the PSSodium module (`-InstallDeps` installs it).
+   To import the resulting `.p12` into the Windows certificate store (CAPI) and verify
+   it, see **[`README-p12-capi-import.md`](README-p12-capi-import.md)**.
+
+### Quick start — bulk issue from a CSV (Workflow 2)
+
+Give it a CSV (one row per certificate; only `CommonName` is required). CM SaaS generates
+the key + cert, and you get one `.zip` per device containing the cert and its private key
+in every common format (PEM + `.p12`), plus a `results.csv` inventory:
+
+```bash
+# Python (central keygen is the default)
+python ccm_csv_cert_issue.py --csv ./devices.csv --api-key <YOUR_API_KEY> \
+  --application-name "My Devices" --issuing-template "<venafi-keygen template>" --output-dir ./out
+```
+
+```powershell
+# PowerShell 7 (-InstallDeps grabs the PSSodium module needed for central keygen)
+pwsh ./Invoke-CcmCsvCertIssue.ps1 -CsvPath ./devices.csv -ApiKey <YOUR_API_KEY> `
+  -ApplicationName "My Devices" -IssuingTemplate "<venafi-keygen template>" -OutputDir ./out -InstallDeps
+```
+
+With no password flag, each cert gets its own random password, recorded in
+`GENERATED-PASSWORDS.csv`. Full details, options, and the local-keygen mode are in
+**[`README-csv-issuance.md`](README-csv-issuance.md)**.
+
+---
+
+## Workflow 1 — Upload / Tag / Download
 
 Two equivalent scripts — one in **PowerShell**, one in **Python 3** — that run the same end-to-end flow against the *CyberArk Certificate Manager — SaaS* REST API at `https://api.venafi.cloud`:
 
