@@ -187,6 +187,29 @@ If you'd rather control passwords yourself, add a password column
 ([`samples/device_sample_with_passwords.csv`](samples/device_sample_with_passwords.csv)) or
 pass `--key-password` / `--prompt-password`.
 
+### Unencrypted private key (`--decrypt-key`)
+
+Some deployments (nginx, Apache, many appliances) want the **private key file without a
+passphrase**. Pass `--decrypt-key` / `-DecryptKey` and the **`<name>.key.pem`** (and the key
+inside the combined `<name>.pem`) is written **unencrypted** — no password needed to use it.
+
+Important: this affects **only the PEM key file**. The **`.p12` always has a password**, because
+PKCS#12 keystores require one. The `.p12` password follows the normal rules above — so if you use
+`--decrypt-key` **without** also giving a password, each `.p12` gets a **random** password that is
+recorded in `GENERATED-PASSWORDS.csv`. In other words:
+
+| You ran… | `key.pem` | `.p12` password |
+|----------|-----------|-----------------|
+| `--decrypt-key` only | unencrypted | random, in `GENERATED-PASSWORDS.csv` |
+| `--decrypt-key --key-password "X"` | unencrypted | `X` (one you chose) |
+| *(neither)* | encrypted with the cert's password | same password |
+
+If you only need the unencrypted PEM, you can simply ignore (or delete) the `.p12`.
+
+> On **Windows PowerShell 5.1**, `-DecryptKey` has no effect — 5.1 cannot write a PEM key at
+> all, so the key is only inside the `.p12`. Use **PowerShell 7+** or the Python tool to get an
+> unencrypted `key.pem`.
+
 ---
 
 ## Which file should I use?
@@ -252,7 +275,7 @@ pwsh ./Invoke-CcmCsvCertIssue.ps1 -KeyGen local `
 | *(n/a)* | `-InstallDeps` | For central keygen, auto-install the `PSSodium` module if missing (PowerShell). |
 | `--key-password` | `-KeyPassword` | One shared password for all certs (else CSV column or random). |
 | `--prompt-password` | `-PromptPassword` | Prompt once and use that one password for all certs. |
-| `--decrypt-key` | `-DecryptKey` | Write the PEM key unencrypted (the `.p12` stays protected). |
+| `--decrypt-key` | `-DecryptKey` | Write the PEM key unencrypted; the `.p12` still gets a password (random if none given) — see [Unencrypted private key](#unencrypted-private-key---decrypt-key). |
 | `--key-size N` | `-KeySize N` | RSA key size (default 2048). |
 | `--validity P90D` | `-Validity P90D` | Optional ISO-8601 validity period. |
 | `--no-zip` | `-NoZip` | Write loose files instead of one `<name>.zip` per certificate. |

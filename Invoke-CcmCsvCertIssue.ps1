@@ -68,8 +68,10 @@
     any CSV password column.
 
 .PARAMETER DecryptKey
-    Write the PEM private key unencrypted (PowerShell 7+). The .p12 is still password
-    protected. Ignored on PowerShell 5.1 (no PEM key is produced there).
+    Write the PEM private key file unencrypted - no passphrase (PowerShell 7+). This affects
+    only the .pem key; the .p12 still gets a password, because PKCS#12 requires one. If you do
+    not also pass -KeyPassword, each .p12 gets a random password recorded in
+    GENERATED-PASSWORDS.csv. Ignored on PowerShell 5.1 (no PEM key is produced there).
 
 .PARAMETER KeySize
     RSA key size. Default 2048.

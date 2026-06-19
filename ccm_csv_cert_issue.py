@@ -422,7 +422,9 @@ def main():
     p.add_argument("--prompt-password", action="store_true",
                    help="Prompt once for a password and use it for ALL certs (overrides the CSV column).")
     p.add_argument("--decrypt-key", action="store_true",
-                   help="Write the PEM private key unencrypted (the .p12 stays password protected).")
+                   help="Write the PEM private key file unencrypted (no passphrase). Only affects "
+                        "the .pem key; the .p12 still gets a password - random (in GENERATED-PASSWORDS.csv) "
+                        "if you don't supply one with --key-password.")
     p.add_argument("--key-size", type=int, default=2048, help="RSA key size (default 2048).")
     p.add_argument("--validity", help="Optional validity period, ISO-8601 (e.g. P90D).")
     p.add_argument("--no-zip", action="store_true",
